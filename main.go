@@ -130,20 +130,13 @@ func (e *Emulator) updateKeyboardInput() {
 	keys = e.ui.AppendPressedKeys(keys)
 
 	e.io.Keys = e.keyMappings.Translate(keys)
-
-	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
-		e.io.Reset = true
-	}
-
-	if inpututil.IsKeyJustReleased(ebiten.KeyF1) {
-		e.io.Reset = false
-	}
+	e.io.Reset = slices.Contains(keys, ebiten.KeyF1)
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyF11) {
 		ebiten.SetFullscreen(!ebiten.IsFullscreen())
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyF1) && slices.Contains(keys, ebiten.KeyControl) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) && slices.Contains(keys, ebiten.KeyControl) {
 		e.hardReset()
 	}
 }
