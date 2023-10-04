@@ -3,7 +3,10 @@ WEB_DIR := dist-web
 .PHONY: primgo web serve lint clean
 
 primgo:
-	go build
+ifeq ($(shell go env GOOS),windows)
+	go run github.com/tc-hib/go-winres@latest make
+endif
+	go build -ldflags "-s -w"
 
 web:
 	mkdir -p ${WEB_DIR}
@@ -20,5 +23,6 @@ lint:
 clean:
 	go clean
 	rm -rf ${WEB_DIR}
+	rm -f rsrc_windows_*.syso
 
 default: primgo
