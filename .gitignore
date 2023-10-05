@@ -1,3 +1,4 @@
 dist*
 primgo*
 rsrc_windows_*.syso
+.vscode
