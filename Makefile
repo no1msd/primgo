@@ -14,7 +14,8 @@ web:
 	mkdir -p ${WEB_DIR}
 	GOOS=js GOARCH=wasm go build -o ${WEB_DIR}/primgo.wasm
 	cp $(shell go env GOROOT)/misc/wasm/wasm_exec.js ${WEB_DIR}
-	cp web/* ${WEB_DIR}
+	cp -r web/. ${WEB_DIR}
+	cp ui/assets/icon512.png ${WEB_DIR}
 
 serve:
 	go run github.com/hajimehoshi/wasmserve@latest -http :8082 .

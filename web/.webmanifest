@@ -1,0 +1,16 @@
+{
+    "short_name": "PrimGO",
+    "icons": [
+        {
+            "src": "/primgo/icon512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": "/primgo",
+    "background_color": "#191919",
+    "display": "standalone",
+    "scope": "/primgo",
+    "theme_color": "#2c2c2c",
+    "orientation": "any"
+}
