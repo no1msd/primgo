@@ -5,8 +5,10 @@ WEB_DIR := dist-web
 primgo:
 ifeq ($(shell go env GOOS),windows)
 	go run github.com/tc-hib/go-winres@latest make
-endif
+	go build -ldflags "-s -w -H windowsgui"
+else
 	go build -ldflags "-s -w"
+endif
 
 web:
 	mkdir -p ${WEB_DIR}
