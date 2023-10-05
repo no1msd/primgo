@@ -1,6 +1,6 @@
 WEB_DIR := dist-web
 
-.PHONY: primgo web serve lint clean
+.PHONY: primgo win web serve lint clean
 
 primgo:
 ifeq ($(shell go env GOOS),windows)
@@ -9,6 +9,10 @@ ifeq ($(shell go env GOOS),windows)
 else
 	go build -ldflags "-s -w"
 endif
+
+win:
+	go run github.com/tc-hib/go-winres@latest make
+	GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -H windowsgui"
 
 web:
 	mkdir -p ${WEB_DIR}
