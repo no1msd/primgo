@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"encoding/json"
 	"image"
 	"image/color"
+	"log"
 	"math"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"golang.org/x/image/font"
 
 	"primgo/primo/tapes"
+	"primgo/settings"
 	"primgo/ui/dialog"
 )
 
@@ -21,7 +24,17 @@ const (
 	ClockSpeedNormal   = 2500000
 	ClockSpeedSpectrum = 3500000
 	ClockSpeedTurbo    = 3750000
+)
 
+func (c ClockSpeed) Validate() bool {
+	return map[ClockSpeed]bool{
+		ClockSpeedNormal:   true,
+		ClockSpeedSpectrum: true,
+		ClockSpeedTurbo:    true,
+	}[c]
+}
+
+const (
 	maxWholeUpscale = 8
 	statusBarHeight = 48
 	textMargin      = 14
@@ -35,6 +48,12 @@ type Widget interface {
 	Layout(w, h int)
 }
 
+type primgoSettings struct {
+	Muted          bool       `json:"muted"`
+	WholeScaleOnly bool       `json:"whole_scale"`
+	ClockSpeed     ClockSpeed `json:"clock_speed"`
+}
+
 type UI struct {
 	Muted         bool
 	ClockSpeed    ClockSpeed
@@ -43,7 +62,7 @@ type UI struct {
 	OnTapeChange  func(data []byte)
 
 	res             Resources
-	displayStretch  bool
+	wholeScaleOnly  bool
 	upscaledScreens map[int]*ebiten.Image
 	openedFileChan  chan *dialog.OpenedFile
 
@@ -65,7 +84,6 @@ func New(res Resources, screenWidth, screenHeight int) *UI {
 	tapeButton := NewIconButton(res.tapeIconImage, ButtonAlignBottomRight, 2)
 
 	ui := &UI{
-		ClockSpeed:     ClockSpeedNormal,
 		volumeButton:   NewIconButton(res.volumeIconImage, ButtonAlignBottomRight, 0),
 		keyboardButton: NewIconButton(res.keyboardUpIconImage, ButtonAlignBottomRight, 1),
 		tapeButton:     tapeButton,
@@ -88,13 +106,57 @@ func New(res Resources, screenWidth, screenHeight int) *UI {
 			res),
 		res:             res,
 		LoadedTape:      "[empty]",
-		displayStretch:  true,
 		upscaledScreens: upscaledScreens,
 	}
 
 	ui.registerCallbacks()
+	ui.loadSettings()
 
 	return ui
+}
+
+func (s *UI) loadSettings() {
+	data, err := settings.Load()
+	if err != nil {
+		log.Printf("Error loading settings: %s\n", err.Error())
+	}
+
+	var ps primgoSettings
+	// empty data is not an error, we just use the default values
+	if data != "" {
+		err = json.Unmarshal([]byte(data), &ps)
+		if err != nil {
+			log.Printf("Error unmarshalling settings: %s\n", err.Error())
+		}
+	}
+
+	if !ps.ClockSpeed.Validate() {
+		ps.ClockSpeed = ClockSpeedNormal
+	}
+
+	s.Muted = ps.Muted
+	s.wholeScaleOnly = ps.WholeScaleOnly
+	s.ClockSpeed = ps.ClockSpeed
+
+	s.updateVolumeIcon()
+	s.updateDisplayIcon()
+	s.updateFreqIcon()
+}
+
+func (s *UI) saveSettings() {
+	data, err := json.Marshal(primgoSettings{
+		Muted:          s.Muted,
+		WholeScaleOnly: s.wholeScaleOnly,
+		ClockSpeed:     s.ClockSpeed,
+	})
+	if err != nil {
+		log.Printf("Error marshalling settings: %s\n", err.Error())
+		return
+	}
+	err = settings.Save(string(data))
+	if err != nil {
+		log.Printf("Error saving settings: %s\n", err.Error())
+	}
 }
 
 func (s *UI) widgets() []Widget {
@@ -118,13 +180,18 @@ func (s *UI) registerCallbacks() {
 	s.tapeList.OnClick = s.onTapeListClicked
 }
 
-func (s *UI) onDisplayClicked() {
-	if s.displayStretch {
+func (s *UI) updateDisplayIcon() {
+	if s.wholeScaleOnly {
 		s.displayButton.Icon = s.res.scale1IconImage
 	} else {
 		s.displayButton.Icon = s.res.scale2IconImage
 	}
-	s.displayStretch = !s.displayStretch
+}
+
+func (s *UI) onDisplayClicked() {
+	s.wholeScaleOnly = !s.wholeScaleOnly
+	s.updateDisplayIcon()
+	s.saveSettings()
 }
 
 func (s *UI) onTapeListClicked(id string) {
@@ -139,13 +206,18 @@ func (s *UI) onTapeListClicked(id string) {
 	s.openedFileChan = dialog.BrowseFile()
 }
 
-func (s *UI) onVolumeClicked() {
+func (s *UI) updateVolumeIcon() {
 	if s.Muted {
-		s.volumeButton.Icon = s.res.volumeIconImage
-	} else {
 		s.volumeButton.Icon = s.res.muteIconImage
+	} else {
+		s.volumeButton.Icon = s.res.volumeIconImage
 	}
+}
+
+func (s *UI) onVolumeClicked() {
 	s.Muted = !s.Muted
+	s.updateVolumeIcon()
+	s.saveSettings()
 }
 
 func (s *UI) onKeyboardClicked() {
@@ -164,18 +236,28 @@ func (s *UI) onTapeClicked() {
 	}
 }
 
+func (s *UI) updateFreqIcon() {
+	switch s.ClockSpeed {
+	case ClockSpeedNormal:
+		s.freqButton.Icon = s.res.cpu1IconImage
+	case ClockSpeedSpectrum:
+		s.freqButton.Icon = s.res.cpu2IconImage
+	case ClockSpeedTurbo:
+		s.freqButton.Icon = s.res.cpu3IconImage
+	}
+}
+
 func (s *UI) onFreqClicked() {
 	switch s.ClockSpeed {
 	case ClockSpeedNormal:
 		s.ClockSpeed = ClockSpeedSpectrum
-		s.freqButton.Icon = s.res.cpu2IconImage
 	case ClockSpeedSpectrum:
 		s.ClockSpeed = ClockSpeedTurbo
-		s.freqButton.Icon = s.res.cpu3IconImage
 	case ClockSpeedTurbo:
 		s.ClockSpeed = ClockSpeedNormal
-		s.freqButton.Icon = s.res.cpu1IconImage
 	}
+	s.updateFreqIcon()
+	s.saveSettings()
 }
 
 func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
@@ -201,9 +283,9 @@ func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
 	screen.Fill(color.RGBA{0x1f, 0x1f, 0x1f, 0xff})
 
 	// check if we want to scale to fractions or keep it crispy
-	scaleType := ScaleTypeKeepSize
-	if s.displayStretch {
-		scaleType = ScaleTypeKeepAspectRatio
+	scaleType := ScaleTypeKeepAspectRatio
+	if s.wholeScaleOnly {
+		scaleType = ScaleTypeKeepSize
 	}
 
 	// finally draw the image to the target size with chosen scaling
