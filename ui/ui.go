@@ -75,11 +75,8 @@ type UI struct {
 	tapeList       *PopupList
 }
 
-func New(res Resources, screenWidth, screenHeight int) *UI {
+func New(res Resources) *UI {
 	upscaledScreens := make(map[int]*ebiten.Image, maxWholeUpscale)
-	for i := 1; i <= maxWholeUpscale; i++ {
-		upscaledScreens[i-1] = ebiten.NewImage(screenWidth*i, screenHeight*i)
-	}
 
 	tapeButton := NewIconButton(res.tapeIconImage, ButtonAlignBottomRight, 2)
 
@@ -269,6 +266,9 @@ func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
 		},
 	}
 
+	// ensure upscaled screens have the correct resolution
+	s.ensureUpscaledScreenSize(primoScreen)
+
 	// upscale the raw image by the closest whole number to the target bounds for crispy pixels
 	wholeScreenIdx := func(v float64) int {
 		return int(math.Max(math.Min(math.Floor(v), maxWholeUpscale), 1)) - 1
@@ -296,6 +296,16 @@ func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
 		TargetRect:      targetRect,
 		Filter:          ebiten.FilterLinear,
 	})
+}
+
+func (s *UI) ensureUpscaledScreenSize(primoScreen *ebiten.Image) {
+	for i := 1; i <= maxWholeUpscale; i++ {
+		desiredSize := primoScreen.Bounds().Size().Mul(i)
+		if s.upscaledScreens[i-1] != nil && s.upscaledScreens[i-1].Bounds().Size() == desiredSize {
+			continue
+		}
+		s.upscaledScreens[i-1] = ebiten.NewImage(desiredSize.X, desiredSize.Y)
+	}
 }
 
 func (s *UI) drawStatusBar(screen *ebiten.Image) {
