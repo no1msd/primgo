@@ -13,6 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"golang.org/x/image/font"
 
+	"primgo/primo"
 	"primgo/primo/tapes"
 	"primgo/settings"
 	"primgo/ui/dialog"
@@ -49,17 +50,20 @@ type Widget interface {
 }
 
 type primgoSettings struct {
-	Muted          bool       `json:"muted"`
-	WholeScaleOnly bool       `json:"whole_scale"`
-	ClockSpeed     ClockSpeed `json:"clock_speed"`
+	Muted          bool          `json:"muted"`
+	WholeScaleOnly bool          `json:"whole_scale"`
+	ClockSpeed     ClockSpeed    `json:"clock_speed"`
+	ROMType        primo.ROMType `json:"rom_type"`
 }
 
 type UI struct {
-	Muted         bool
-	ClockSpeed    ClockSpeed
-	LoadedTape    string
-	MesauredClock string
-	OnTapeChange  func(data []byte)
+	Muted           bool
+	ClockSpeed      ClockSpeed
+	ROMType         primo.ROMType
+	LoadedTape      string
+	MesauredClock   string
+	OnTapeChange    func(data []byte)
+	OnROMTypeChange func(romType primo.ROMType)
 
 	res             Resources
 	wholeScaleOnly  bool
@@ -70,39 +74,36 @@ type UI struct {
 	tapeButton     *Button
 	keyboardButton *Button
 	freqButton     *Button
+	romButton      *Button
 	displayButton  *Button
 	keyboard       *Keyboard
 	tapeList       *PopupList
+	romList        *PopupList
 }
 
-func New(res Resources, screenWidth, screenHeight int) *UI {
+func New(res Resources) *UI {
 	upscaledScreens := make(map[int]*ebiten.Image, maxWholeUpscale)
-	for i := 1; i <= maxWholeUpscale; i++ {
-		upscaledScreens[i-1] = ebiten.NewImage(screenWidth*i, screenHeight*i)
-	}
 
 	tapeButton := NewIconButton(res.tapeIconImage, ButtonAlignBottomRight, 2)
+	romButton := NewIconButton(res.rom1IconImage, ButtonAlignBottomLeft, 0)
 
 	ui := &UI{
 		volumeButton:   NewIconButton(res.volumeIconImage, ButtonAlignBottomRight, 0),
 		keyboardButton: NewIconButton(res.keyboardUpIconImage, ButtonAlignBottomRight, 1),
 		tapeButton:     tapeButton,
-		freqButton:     NewIconButton(res.cpu1IconImage, ButtonAlignBottomLeft, 0),
+		romButton:      romButton,
+		freqButton:     NewIconButton(res.cpu1IconImage, ButtonAlignBottomLeft, 1),
 		displayButton:  NewIconButton(res.scale2IconImage, ButtonAlignTopRight, 0),
 		keyboard:       NewKeyboard(res),
-		tapeList: NewPopupList(
+		tapeList:       NewPopupList(tapeItems(), tapeButton, PopupAlignLeft, res),
+		romList: NewPopupList(
 			[]ItemInfo{
-				{Label: "emblema.ptp", ID: "emblema.ptp"},
-				{Label: "betuk.ptp", ID: "betuk.ptp"},
-				{Label: "rajzolo.ptp", ID: "rajzolo.ptp"},
-				{Label: "kigyo.ptp", ID: "kigyo.ptp"},
-				{Label: "othello.ptp", ID: "othello.ptp"},
-				{Label: "hammm.ptp", ID: "hammm.ptp"},
-				{Label: "himnusz.ptp", ID: "himnusz.ptp"},
-				{Label: "foldrajz.ptp", ID: "foldrajz.ptp"},
-				{Label: "Open PTP file", ID: openPTPItemID, Highlight: true},
+				{Label: "Reset to A64", ID: string(primo.ROMTypeA)},
+				{Label: "Reset to B64", ID: string(primo.ROMTypeB)},
+				{Label: "Reset to C64", ID: string(primo.ROMTypeC)},
 			},
-			tapeButton,
+			romButton,
+			PopupAlignRight,
 			res),
 		res:             res,
 		LoadedTape:      "[empty]",
@@ -113,6 +114,21 @@ func New(res Resources, screenWidth, screenHeight int) *UI {
 	ui.loadSettings()
 
 	return ui
+}
+
+func tapeItems() []ItemInfo {
+	return []ItemInfo{
+		{Label: "raktaros.ptp", ID: "raktaros.ptp"},
+		{Label: "emblema.ptp", ID: "emblema.ptp"},
+		{Label: "betuk.ptp", ID: "betuk.ptp"},
+		{Label: "rajzolo.ptp", ID: "rajzolo.ptp"},
+		{Label: "kigyo.ptp", ID: "kigyo.ptp"},
+		{Label: "othello.ptp", ID: "othello.ptp"},
+		{Label: "hammm.ptp", ID: "hammm.ptp"},
+		{Label: "himnusz.ptp", ID: "himnusz.ptp"},
+		{Label: "foldrajz.ptp", ID: "foldrajz.ptp"},
+		{Label: "Open PTP file", ID: openPTPItemID, Highlight: true},
+	}
 }
 
 func (s *UI) loadSettings() {
@@ -134,13 +150,19 @@ func (s *UI) loadSettings() {
 		ps.ClockSpeed = ClockSpeedNormal
 	}
 
+	if !ps.ROMType.Validate() {
+		ps.ROMType = primo.ROMTypeA
+	}
+
 	s.Muted = ps.Muted
 	s.wholeScaleOnly = ps.WholeScaleOnly
 	s.ClockSpeed = ps.ClockSpeed
+	s.ROMType = ps.ROMType
 
 	s.updateVolumeIcon()
 	s.updateDisplayIcon()
 	s.updateFreqIcon()
+	s.updateROMIcon()
 }
 
 func (s *UI) saveSettings() {
@@ -148,6 +170,7 @@ func (s *UI) saveSettings() {
 		Muted:          s.Muted,
 		WholeScaleOnly: s.wholeScaleOnly,
 		ClockSpeed:     s.ClockSpeed,
+		ROMType:        s.ROMType,
 	})
 	if err != nil {
 		log.Printf("Error marshalling settings: %s\n", err.Error())
@@ -162,9 +185,11 @@ func (s *UI) saveSettings() {
 func (s *UI) widgets() []Widget {
 	return []Widget{
 		s.tapeList,
+		s.romList,
 		s.volumeButton,
 		s.tapeButton,
 		s.keyboardButton,
+		s.romButton,
 		s.freqButton,
 		s.displayButton,
 		s.keyboard,
@@ -174,10 +199,12 @@ func (s *UI) widgets() []Widget {
 func (s *UI) registerCallbacks() {
 	s.volumeButton.OnReleased = s.onVolumeClicked
 	s.freqButton.OnReleased = s.onFreqClicked
+	s.romButton.OnReleased = s.onROMClicked
 	s.keyboardButton.OnReleased = s.onKeyboardClicked
 	s.tapeButton.OnReleased = s.onTapeClicked
 	s.displayButton.OnReleased = s.onDisplayClicked
 	s.tapeList.OnClick = s.onTapeListClicked
+	s.romList.OnClick = s.onROMListClicked
 }
 
 func (s *UI) updateDisplayIcon() {
@@ -204,6 +231,15 @@ func (s *UI) onTapeListClicked(id string) {
 	}
 
 	s.openedFileChan = dialog.BrowseFile()
+}
+
+func (s *UI) onROMListClicked(id string) {
+	s.ROMType = primo.ROMType(id)
+	if s.OnROMTypeChange != nil {
+		s.OnROMTypeChange(s.ROMType)
+	}
+	s.updateROMIcon()
+	s.saveSettings()
 }
 
 func (s *UI) updateVolumeIcon() {
@@ -236,6 +272,12 @@ func (s *UI) onTapeClicked() {
 	}
 }
 
+func (s *UI) onROMClicked() {
+	if !s.romList.IsOpen {
+		s.romList.Open()
+	}
+}
+
 func (s *UI) updateFreqIcon() {
 	switch s.ClockSpeed {
 	case ClockSpeedNormal:
@@ -244,6 +286,17 @@ func (s *UI) updateFreqIcon() {
 		s.freqButton.Icon = s.res.cpu2IconImage
 	case ClockSpeedTurbo:
 		s.freqButton.Icon = s.res.cpu3IconImage
+	}
+}
+
+func (s *UI) updateROMIcon() {
+	switch s.ROMType {
+	case primo.ROMTypeA:
+		s.romButton.Icon = s.res.rom1IconImage
+	case primo.ROMTypeB:
+		s.romButton.Icon = s.res.rom2IconImage
+	case primo.ROMTypeC:
+		s.romButton.Icon = s.res.rom3IconImage
 	}
 }
 
@@ -268,6 +321,9 @@ func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
 			Y: screen.Bounds().Dy() - (statusBarHeight + s.keyboard.Height),
 		},
 	}
+
+	// ensure upscaled screens have the correct resolution
+	s.ensureUpscaledScreenSize(primoScreen)
 
 	// upscale the raw image by the closest whole number to the target bounds for crispy pixels
 	wholeScreenIdx := func(v float64) int {
@@ -296,6 +352,16 @@ func (s *UI) drawEmulatorScreen(screen, primoScreen *ebiten.Image) {
 		TargetRect:      targetRect,
 		Filter:          ebiten.FilterLinear,
 	})
+}
+
+func (s *UI) ensureUpscaledScreenSize(primoScreen *ebiten.Image) {
+	for i := 1; i <= maxWholeUpscale; i++ {
+		desiredSize := primoScreen.Bounds().Size().Mul(i)
+		if s.upscaledScreens[i-1] != nil && s.upscaledScreens[i-1].Bounds().Size() == desiredSize {
+			continue
+		}
+		s.upscaledScreens[i-1] = ebiten.NewImage(desiredSize.X, desiredSize.Y)
+	}
 }
 
 func (s *UI) drawStatusBar(screen *ebiten.Image) {
@@ -346,9 +412,11 @@ func (s *UI) Draw(screen, primoScreen *ebiten.Image) {
 	s.tapeButton.Draw(screen)
 	s.keyboardButton.Draw(screen)
 	s.freqButton.Draw(screen)
+	s.romButton.Draw(screen)
 	s.displayButton.Draw(screen)
 
 	s.tapeList.Draw(screen)
+	s.romList.Draw(screen)
 }
 
 func (s *UI) Update() {

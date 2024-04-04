@@ -10,6 +10,13 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type PopupAlign string
+
+const (
+	PopupAlignLeft  PopupAlign = "left"
+	PopupAlignRight PopupAlign = "right"
+)
+
 const (
 	listBackgroundItemID = "{bg}"
 	listRowHeight        = 48
@@ -33,6 +40,7 @@ type PopupList struct {
 	items          []ItemInfo
 	selectedItem   string
 	anchor         Boundable
+	align          PopupAlign
 	positionOffset float64
 	screenSize     image.Point
 	res            Resources
@@ -40,10 +48,11 @@ type PopupList struct {
 	clickHandler   *ClickHandler[string]
 }
 
-func NewPopupList(items []ItemInfo, anchor Boundable, res Resources) *PopupList {
+func NewPopupList(items []ItemInfo, anchor Boundable, align PopupAlign, res Resources) *PopupList {
 	popupList := &PopupList{
 		items:          items,
 		anchor:         anchor,
+		align:          align,
 		positionOffset: float64((len(items) + 1) * listRowHeight),
 		res:            res,
 	}
@@ -142,7 +151,14 @@ func (p PopupList) Draw(screen *ebiten.Image) {
 }
 
 func (p PopupList) position() image.Point {
-	return p.anchor.BoundingRectangle().Min.Add(p.anchor.BoundingRectangle().Size().Div(2))
+	pos := p.anchor.BoundingRectangle().Min.
+		Add(p.anchor.BoundingRectangle().Size().Div(2))
+
+	if p.align == PopupAlignRight {
+		pos = pos.Add(image.Point{X: listWidth, Y: 0})
+	}
+
+	return pos
 }
 
 func (p *PopupList) boundingRectangle() image.Rectangle {

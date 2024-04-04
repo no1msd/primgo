@@ -14,7 +14,7 @@ const (
 	ButtonAlignBottomRight ButtonAlign = "bottomright"
 	ButtonAlignTopRight    ButtonAlign = "topright"
 
-	buttonMargin     = 12
+	buttonMargin     = 10
 	buttonTouchInset = -10
 )
 

@@ -20,6 +20,7 @@ PRIMO is an 8-bit home computer developed in 1984 by the Hungarian research inst
 - Loading [PTP tape files](http://primo.homeserver.hu/html/konvertfajlok.html)
 - Variable CPU frequency
 - Virtual keyboard
+- A64, B64 and C64 versions
 
 Currently there is no support for:
 - Loading PRI files
