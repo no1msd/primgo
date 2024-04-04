@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"log"
 	"time"
 
@@ -18,19 +17,14 @@ import (
 )
 
 const (
-	screenWidth         = 256
-	screenHeight        = 192
 	tickPerSec          = 50
 	vblankLength        = 0.0016
-	keyboardRepeat      = 48
 	audioBufferSizeInMS = 100
 	sampleRate          = 44100
 )
 
 type Emulator struct {
 	primoScreen *ebiten.Image
-	bgColor     color.RGBA
-	fgColor     color.RGBA
 
 	memory *primo.Memory
 	io     *primo.IO
@@ -50,7 +44,9 @@ type Emulator struct {
 }
 
 func NewEmulator() *Emulator {
-	mem := primo.NewMemory(keyboardRepeat)
+	emuUI := ui.New(ui.NewResources())
+
+	mem := primo.NewMemory(emuUI.ROMType)
 	io := primo.NewIO()
 	cpu := z80.Build(z80.WithMemory(mem), z80.WithIO(io), z80.WithNMI(io))
 	tapePlayer := primo.NewTapePlayer()
@@ -60,15 +56,7 @@ func NewEmulator() *Emulator {
 	audioPlayer.SetBufferSize(audioBufferSizeInMS * time.Millisecond)
 	audioPlayer.Play()
 
-	emuUI := ui.New(ui.NewResources(), screenWidth, screenHeight)
-	emuUI.OnTapeChange = func(data []byte) {
-		tapePlayer.ChangeTape(data)
-	}
-
-	return &Emulator{
-		primoScreen: ebiten.NewImage(screenWidth, screenHeight),
-		bgColor:     color.RGBA{R: 0x18, G: 0x18, B: 0x18, A: 0xff},
-		fgColor:     color.RGBA{R: 0xec, G: 0xec, B: 0xec, A: 0xff},
+	emu := &Emulator{
 		memory:      mem,
 		io:          io,
 		tape:        tapePlayer,
@@ -77,10 +65,20 @@ func NewEmulator() *Emulator {
 		ui:          emuUI,
 		keyMappings: ui.GetKeyMappings(),
 	}
+
+	emuUI.OnTapeChange = func(data []byte) {
+		tapePlayer.ChangeTape(data)
+	}
+
+	emuUI.OnROMTypeChange = func(romType primo.ROMType) {
+		emu.memory = primo.NewMemory(romType)
+		emu.hardReset()
+	}
+
+	return emu
 }
 
 func (e *Emulator) hardReset() {
-	e.memory = primo.NewMemory(keyboardRepeat)
 	e.io = primo.NewIO()
 	e.cpu = z80.Build(z80.WithMemory(e.memory), z80.WithIO(e.io), z80.WithNMI(e.io))
 	e.ramInitialized = false
@@ -91,21 +89,45 @@ func (e *Emulator) hardReset() {
 // recorder IO ports.
 func (e *Emulator) patchPTPLoad() {
 	// skip sync reading in RDSYN subroutine
-	if e.cpu.PC == 0x3C76 {
-		e.cpu.PC = 0x3C7D
+	if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelRDSYN) {
+		e.cpu.PC += 8
 	}
 
 	// overwrite INBYTE subroutine
-	if e.cpu.PC == 0x3CAB {
+	if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelINBYTE) {
 		nextByte := e.tape.NextByte()        // read next byte from PTP
 		e.cpu.DE.Hi = nextByte + e.cpu.DE.Hi // store checksum in D register
 		e.cpu.AF.Hi = nextByte               // store byte in A register
-		e.cpu.PC = 0x3CB8                    // jump to RET in original subroutine
+		e.cpu.PC += 13                       // jump to RET in original subroutine
 	}
 
 	// skip cassette handling in RDHEAD subroutine
-	if e.cpu.PC == 0x3B3F {
-		e.cpu.PC = 0x3BAD
+	if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelRDHEAD)+9 {
+		e.cpu.PC += 110
+	}
+}
+
+// patchStuckNMIHandler works around the issue of getting the execution stuck in the NMI handlers
+// after a hard reset in the "C" version of the ROM.
+func (e *Emulator) patchStuckNMIHandler() {
+	if e.memory.ROMType != primo.ROMTypeC {
+		return
+	}
+
+	if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelNMIStuck) {
+		e.cpu.PC++ // skip a jump that gets us stuck
+	}
+}
+
+// patchStuckNMIFlag works around the issue of getting the CPU's InNMI flag stuck after a soft reset
+// is executed in the "A" and "B" versions of the ROM.
+func (e *Emulator) patchStuckNMIFlag() {
+	if e.memory.ROMType != primo.ROMTypeA && e.memory.ROMType != primo.ROMTypeB {
+		return
+	}
+
+	if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelRESET) {
+		e.cpu.InNMI = false // we have to manually reset the CPU's NMI state
 	}
 }
 
@@ -166,16 +188,13 @@ func (e *Emulator) Update() error {
 		e.io.VBlank = i < vblankCycles
 
 		// INIT subroutine is called
-		if e.cpu.PC == 0x3178 {
+		if e.cpu.PC == e.memory.ROMLabelAddress(primo.ROMLabelINIT) {
 			e.ramInitialized = true
 		}
 
-		// RESET subroutine is called
-		if e.cpu.PC == 0x316A {
-			e.cpu.InNMI = false // we have to manually reset the CPU's NMI state
-		}
-
 		e.patchPTPLoad()
+		e.patchStuckNMIHandler()
+		e.patchStuckNMIFlag()
 		e.sampleAudio()
 
 		// execute a single instruction
@@ -191,7 +210,18 @@ func (e *Emulator) Update() error {
 }
 
 func (e *Emulator) Draw(screen *ebiten.Image) {
-	e.primoScreen.WritePixels(e.memory.GetRGBAScreenData(e.io.PrimaryVideo, e.bgColor, e.fgColor))
+	screenPage := primo.ScreenPageSecondary
+	if e.io.PrimaryVideo {
+		screenPage = primo.ScreenPagePrimary
+	}
+
+	// ensure correct screen size
+	desiredSize := e.memory.ScreenResolution(screenPage)
+	if e.primoScreen == nil || e.primoScreen.Bounds().Size() != desiredSize {
+		e.primoScreen = ebiten.NewImage(desiredSize.X, desiredSize.Y)
+	}
+
+	e.primoScreen.WritePixels(e.memory.GetRGBAScreenData(screenPage))
 	e.ui.Draw(screen, e.primoScreen)
 }
 
@@ -201,7 +231,7 @@ func (e *Emulator) Layout(w, h int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth*3, screenHeight*3+48)
+	ebiten.SetWindowSize(768, 624)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowTitle("PrimGO")
 	ebiten.SetWindowIcon([]image.Image{

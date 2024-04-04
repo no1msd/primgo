@@ -1,4 +1,4 @@
-const CACHE_NAME = "primgo-v0.1.1";
+const CACHE_NAME = "primgo-v0.2.0";
 const CACHED_FILES = [
     "/primgo/wasm_exec.js",
     "/primgo/icon512.png",
