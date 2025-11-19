@@ -1,31 +1,165 @@
 <!DOCTYPE html>
-<head>
-<title>PrimGO</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<link rel="manifest" href="/primgo/.webmanifest">
-<style>
-body { overflow: hidden; }
-</style>
-<script type='text/javascript'>
-window.addEventListener("load", () => {
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./service-worker.js");
-    }
-});
-</script>
-</head>
-<script src="wasm_exec.js"></script>
-<script>
-// Polyfill
-if (!WebAssembly.instantiateStreaming) {
-    WebAssembly.instantiateStreaming = async (resp, importObject) => {
-        const source = await (await resp).arrayBuffer();
-        return await WebAssembly.instantiate(source, importObject);
-    };
-}
+<html lang="en">
 
-const go = new Go();
-WebAssembly.instantiateStreaming(fetch("primgo.wasm"), go.importObject).then(result => {
-    go.run(result.instance);
-});
-</script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrimGO - The Hungarian 8-Bit Legend</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Press+Start+2P&display=swap"
+        rel="stylesheet">
+    <meta name="description" content="PrimGO is an emulator for the PRIMO, Hungary's 1984 home computer.">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="#" class="logo">
+                    <img src="icon512.png" alt="PrimGO">
+                    PrimGO
+                </a>
+                <button class="mobile-menu-toggle" aria-label="Toggle navigation">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="nav-links">
+                    <a href="#specs">Specs</a>
+                    <a href="#features">Features</a>
+                    <a href="#history">History</a>
+                    <a href="https://github.com/no1msd/primgo" aria-label="GitHub">
+                        GitHub
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-grid">
+                    <div class="hero-content">
+                        <span class="hero-tag">EST. 1984 // BUDAPEST</span>
+                        <h1>Hungary's <br>8-Bit Pioneer</h1>
+                        <p>Experience the PRIMO, a rare home computer, faithfully recreated in your browser.
+                            Powered
+                            by Go and Ebitengine.</p>
+                        <div class="btn-group">
+                            <a href="emulator.html" class="btn btn-primary">Launch Emulator</a>
+                            <a href="https://github.com/no1msd/primgo" class="btn btn-outline">View Source</a>
+                        </div>
+                    </div>
+                    <div class="hero-visual">
+                        <div class="monitor-frame">
+                            <div class="monitor-screen">
+                                <img src="screenshot.gif" alt="PrimGO Screenshot">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="specs" class="specs">
+            <div class="container">
+                <h2>System Specs</h2>
+                <div class="specs-grid">
+                    <div class="spec-card">
+                        <span class="spec-value">8-bit</span>
+                        <span class="spec-label">Processor</span>
+                    </div>
+                    <div class="spec-card">
+                        <span class="spec-value">16 KB</span>
+                        <span class="spec-label">ROM</span>
+                    </div>
+                    <div class="spec-card">
+                        <span class="spec-value">48 KB</span>
+                        <span class="spec-label">RAM</span>
+                    </div>
+                    <div class="spec-card">
+                        <span class="spec-value">256x192</span>
+                        <span class="spec-label">Resolution</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <div class="container">
+                <h2>Emulator Features</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <h3>Authentic Emulation</h3>
+                        <p>Cycle-accurate Z80 CPU emulation based on the robust <code>koron-go/z80</code> library.
+                            Experience the exact timing and quirks of the original hardware.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Tape Loading</h3>
+                        <p>Full support for PTP tape files. Load original software and demos directly from the web
+                            interface
+                            or your local file system.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Modern Convenience</h3>
+                        <p>Includes quality-of-life features like variable CPU frequency (Turbo Mode), integer scaling,
+                            and
+                            a virtual on-screen keyboard.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="history" class="history">
+            <div class="container">
+                <div class="dossier-container">
+                    <div class="history-text">
+                        <h2>Primo History</h2>
+                        <p>
+                            The <span class="highlight">PRIMO</span> is a true 8-bit rarity. Developed in 1984 by <span
+                                class="highlight">SZTAKI</span> and manufactured by an agricultural cooperative in
+                            Sárisáp, it was a bold attempt to bring home computing to Hungary. Powered by a
+                            Z80-compatible U880 processor running at <span class="highlight">3.75 MHz</span>, it offered
+                            a unique architecture with 256x192 monochrome graphics.
+                        </p>
+                        <p>
+                            Perhaps its most iconic feature was the <span class="highlight">capacitive touch
+                                keyboard</span> of the 'A' series, which gave the machine its distinctive look and feel.
+                            Later
+                            'B' models adopted mechanical keys, and a 'Pro' version even added color. Sound was minimal,
+                            provided by a 1-bit speaker affectionately known in the manual as the <span
+                                class="highlight">"duda"</span> (horn).
+                        </p>
+                        <p>
+                            With only about <span class="highlight">7,000 units</span> ever produced, the PRIMO is a
+                            collector's gem. PrimGO faithfully emulates this hardware, from the CPU timing to the
+                            monochrome
+                            display, preserving this slice of history for a new generation.
+                        </p>
+                    </div>
+                    <div class="history-visual">
+                        <div class="history-image-wrapper">
+                            <img src="handbook_restored.png" alt="Primo Handbook Cover" class="history-image">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <p>PrimGO is an open source project licensed under MIT.</p>
+            <p>Original hardware by SZTAKI. Emulation by Dániel Sipka.</p>
+            <p>Special thanks to <a href="http://primo.homeserver.hu/">primo.homeserver.hu</a>.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

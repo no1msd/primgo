@@ -3,7 +3,7 @@ const CACHED_FILES = [
     "/primgo/wasm_exec.js",
     "/primgo/icon512.png",
     "/primgo/favicon.png",
-    "/primgo/index.html",
+    "/primgo/emulator.html",
     "/primgo/service-worker.js",
     "/primgo/primgo.wasm"
 ];

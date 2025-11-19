@@ -6,7 +6,7 @@
 <p align="center">
   PrimGO is a multi-platform PRIMO emulator written in Go using the <a href="https://ebitengine.org/">Ebitengine</a> game engine.
   <br><br>
-  <a href="https://no1msd.github.io/primgo/"><b>Try it out online!</b></a>
+  <a href="https://no1msd.github.io/primgo/emulator.html"><b>Try it out online!</b></a>
   <br><br>
   <img src="screenshot.gif" width="511" alt="Screenshot">
 </p>
